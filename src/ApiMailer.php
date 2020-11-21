@@ -4,12 +4,13 @@ namespace Haruncpi\LaravelApiMailer;
 
 use Haruncpi\LaravelApiMailer\Services\Mailgun;
 use Haruncpi\LaravelApiMailer\Services\SendGrid;
+use Haruncpi\LaravelApiMailer\Services\SendInBlue;
 
 class ApiMailer
 {
     protected $driver;
     protected $mailService;
-    protected $mailServiceProviders = ['sendgrid', 'mailgun'];
+    protected $mailServiceProviders = ['sendgrid', 'mailgun','sendinblue'];
 
     public function __construct()
     {
@@ -24,6 +25,9 @@ class ApiMailer
                 break;
             case 'mailgun':
                 $this->mailService = new Mailgun();
+                break;
+            case 'sendinblue':
+                $this->mailService = new SendInBlue();
                 break;
         }
     }

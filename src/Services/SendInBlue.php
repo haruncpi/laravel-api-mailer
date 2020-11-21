@@ -4,21 +4,19 @@ namespace Haruncpi\LaravelApiMailer\Services;
 
 use Haruncpi\LaravelApiMailer\Contract\Sendable;
 
-class Mailgun extends Sendable
+class SendInBlue extends Sendable
 {
     protected $key;
-    protected $serviceUrl, $domain;
+    protected $serviceUrl = 'https://api.sendinblue.com/v3/smtp/email';
 
     public function __construct()
     {
-        $this->domain = config('api-mailer.drivers.mailgun.domain');
-        $this->serviceUrl = "https://api.mailgun.net/v3/" . $this->domain . "/messages";
-        $this->key = config('api-mailer.drivers.mailgun.api_key');
+        $this->key = config('api-mailer.drivers.sendinblue.api_key');
     }
 
     public function makePayload($payload)
     {
-        $toString = null;
+        $toArray = [];
 
         if (array_key_exists("from", $payload)) {
             $from = makeEmailString($payload["from"]);
@@ -29,10 +27,12 @@ class Mailgun extends Sendable
         if (array_key_exists("to", $payload)) {
             $to = $payload["to"];
             if (is_string($to)) {
-                $toString = $payload["to"];
+                array_push($toArray, ["email" => $to]);
             }
             if (is_array($to)) {
-                $toString = implode(",", $payload["to"]);
+                for ($i = 0; $i < count($to); $i++) {
+                    array_push($toArray, ["email" => $to[$i]]);
+                }
             }
         }
 
@@ -43,23 +43,13 @@ class Mailgun extends Sendable
             $body = $payload["body"];
         }
         $data = [
-            "from"    => $from,
-            "to"      => $toString,
-            "subject" => $subject,
-            "html"    => $body
+            "sender"      => ["email" => $from],
+            "to"          => $toArray,
+            "subject"     => $subject,
+            "htmlContent" => $body
         ];
 
-        if (array_key_exists("cc", $payload)) {
-            $cc = $payload["cc"];
-            if (is_string($cc)) {
-                $data['cc'] = $payload["cc"];
-            }
-            if (is_array($cc)) {
-                $data['cc'] = implode(",", $payload["cc"]);
-            }
-        }
-
-        return $data;
+        return json_encode($data);
     }
 
 
@@ -68,24 +58,24 @@ class Mailgun extends Sendable
 
         $data = $this->makePayload($payload);
 
+        $headers = array();
+        $headers[] = 'accept: application/json';
+        $headers[] = 'content-type: application/json';
+        $headers[] = 'api-key: ' . $this->key;
+
+
         $ch = curl_init($this->serviceUrl);
-        curl_setopt($ch, CURLOPT_USERPWD, "api:" . $this->key);
-//        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-//        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
-
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         $result = curl_exec($ch);
         $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-
         curl_close($ch);
 
 
-        //status 200 success
-        if ($statusCode == 200) {
+        if ($statusCode == 202) {
             return ['success' => true, 'message' => 'successfully send'];
         } else {
             $message = json_decode($result)->message;
